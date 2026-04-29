@@ -1,35 +1,73 @@
-# justdownload
+# ytdl.term
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+A tiny terminal-styled YouTube downloader. Single-container Next.js app that wraps `yt-dlp` and `ffmpeg`, runs anywhere Docker runs, and saves completed files straight to a host folder.
 
-## Built with v0
+## Run it
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
+You need [Docker](https://docs.docker.com/get-docker/) with the Compose plugin (any reasonably recent install has it built in).
 
-[Continue working on v0 →](https://v0.app/chat/projects/prj_E2AMizNS9KHdVHhd4sSXAUyHMqnX)
-
-## Getting Started
-
-First, run the development server:
+**First run** — builds the image (installs Node deps, `yt-dlp`, `ffmpeg`):
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+docker compose up --build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Every run after that:**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+docker compose up
+```
 
-## Learn More
+Add `-d` to either to run detached. Stop with `docker compose down`.
 
-To learn more, take a look at the following resources:
+Open http://localhost:3000 once it boots.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
+## Where do my downloads go?
 
-<a href="https://v0.app/chat/api/kiro/clone/LXW1205/justdownload" alt="Open in Kiro"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
+Anything you download lands in `./downloads/` next to `docker-compose.yml`, on the host machine. The folder is bind-mounted into the container at `/app/downloads`, so files persist across rebuilds and are accessible directly from your file manager.
+
+## Cookies (optional)
+
+For age-restricted, members-only, or private videos, export a Netscape-format `cookies.txt` from your browser (the "Get cookies.txt LOCALLY" extension works well) and replace the placeholder `cookies.txt` in this folder. The container mounts it read-only at `/app/cookies.txt` and `yt-dlp` picks it up automatically. The status line in the UI tells you whether it was detected.
+
+If you don't need cookies, leave the placeholder file as-is — an empty/comment-only file is ignored.
+
+## Updating yt-dlp
+
+YouTube changes things often and `yt-dlp` ships fixes constantly. To pull the latest version, rebuild:
+
+```bash
+docker compose build --no-cache
+docker compose up
+```
+
+## Configuration
+
+Two env vars, both already set sensibly in `docker-compose.yml`:
+
+| Variable        | Default              | Purpose                                                             |
+| --------------- | -------------------- | ------------------------------------------------------------------- |
+| `DOWNLOAD_DIR`  | `/app/downloads`     | Where `yt-dlp` writes completed files inside the container.         |
+| `COOKIES_PATH`  | `/app/cookies.txt`   | Path to the mounted cookies file. Used only if non-empty.           |
+
+To bind to a different host port, change `"3000:3000"` in `docker-compose.yml` to e.g. `"8080:3000"`.
+
+## Project layout
+
+```
+app/                 Next.js App Router pages + API routes
+  api/fetch-info/    POST: probe a video, return metadata + format list
+  api/download/      POST: spawn yt-dlp, stream progress as SSE
+  api/file/[name]/   GET:  download the finished file
+  api/status/        GET:  reports whether cookies.txt was detected
+components/          Terminal-styled UI panels
+lib/yt-dlp.ts        Shared helpers (paths, formatting, label builders)
+Dockerfile           Multi-stage build: deps → build → minimal runner
+docker-compose.yml   Volume mounts + port + env wiring
+downloads/           Host folder where finished files appear
+cookies.txt          Optional Netscape cookies, mounted read-only
+```
+
+## Stack
+
+Next.js 16 (App Router) · Node 20 (Alpine) · yt-dlp · ffmpeg · Tailwind CSS 4
