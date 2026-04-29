@@ -2,6 +2,8 @@
 
 A terminal-styled YouTube downloader. Single-container Next.js app that wraps `yt-dlp` and `ffmpeg`, runs anywhere Docker runs, and saves completed files straight to a host folder.
 
+![System Preview](/sample_screens/justdownload-1.png)
+
 ## Run it
 
 You need [Docker](https://docs.docker.com/get-docker/) with the Compose plugin (any reasonably recent install has it built in).
@@ -25,6 +27,8 @@ Open http://localhost:3000 once it boots.
 ## Where do my downloads go?
 
 Anything you download lands in `./downloads/` next to `docker-compose.yml`, on the host machine. The folder is bind-mounted into the container at `/app/downloads`, so files persist across rebuilds and are accessible directly from your file manager.
+
+![System Preview](/sample_screens/justdownload-3.png)
 
 ## Cookies (optional)
 
