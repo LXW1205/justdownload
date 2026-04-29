@@ -10,7 +10,14 @@ next.user-config.*
 # Environment variables
 .env*.local
 
+# Cookies (may contain sensitive session data)
+cookies.txt
+
+# Downloaded media files — keep the folder but ignore its contents
+downloads/*
+!downloads/.gitkeep
+
 # Common ignores
 node_modules
 .next/
-.DS_Store
+.DS_Store
