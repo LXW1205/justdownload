@@ -1,24 +1,17 @@
 import { randomUUID } from "node:crypto"
-import { tmpdir } from "node:os"
 import path from "node:path"
 import fs from "node:fs/promises"
 
-// In-memory session store. Persists for the lifetime of the Node process.
-// Maps sessionId -> absolute path of cookies.txt on disk.
+// In-memory session store. Maps sessionId -> per-session metadata.
+// Survives the lifetime of the worker process.
 type Session = {
   cookiesPath?: string
   createdAt: number
 }
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __ytSessions: Map<string, Session> | undefined
-}
+const sessions = new Map<string, Session>()
 
-const sessions: Map<string, Session> = globalThis.__ytSessions ?? new Map()
-if (!globalThis.__ytSessions) {
-  globalThis.__ytSessions = sessions
-}
+const WORK_DIR = process.env.WORK_DIR || "/tmp/ytdl-term"
 
 export function createSessionId(): string {
   const id = randomUUID()
@@ -42,27 +35,25 @@ export function clearCookies(id: string) {
   sessions.set(id, { ...existing, cookiesPath: undefined })
 }
 
-export async function getYtdlWorkDir(): Promise<string> {
-  const dir = path.join(tmpdir(), "ytdl-term")
-  await fs.mkdir(dir, { recursive: true })
-  return dir
+export async function getWorkDir(): Promise<string> {
+  await fs.mkdir(WORK_DIR, { recursive: true })
+  return WORK_DIR
 }
 
 export async function getDownloadsDir(): Promise<string> {
-  const dir = path.join(await getYtdlWorkDir(), "downloads")
+  const dir = path.join(await getWorkDir(), "downloads")
   await fs.mkdir(dir, { recursive: true })
   return dir
 }
 
 export async function getCookiesDir(): Promise<string> {
-  const dir = path.join(await getYtdlWorkDir(), "cookies")
+  const dir = path.join(await getWorkDir(), "cookies")
   await fs.mkdir(dir, { recursive: true })
   return dir
 }
 
 /**
- * Search the process working directory for a `cookies.txt` file (matches the
- * original Python behaviour). Returns absolute path or null.
+ * Auto-detect a `cookies.txt` placed alongside the worker (handy for power users).
  */
 export async function autoDetectCookies(): Promise<string | null> {
   const candidate = path.join(process.cwd(), "cookies.txt")

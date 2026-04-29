@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import type { VideoInfo, FormatEntry } from "@/app/api/fetch-info/route"
+import type { VideoInfo, FormatEntry } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatBytes } from "@/lib/ascii"
 

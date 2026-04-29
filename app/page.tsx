@@ -6,7 +6,11 @@ import { UrlInputPanel } from "@/components/url-input-panel"
 import { OptionsPanel } from "@/components/options-panel"
 import { VideoInfoPanel } from "@/components/video-info-panel"
 import { TerminalOutput, type LogLine } from "@/components/terminal-output"
-import type { VideoInfo } from "@/app/api/fetch-info/route"
+import type { VideoInfo } from "@/lib/types"
+
+// The Next.js app is a thin client. All real work happens on the home-server
+// worker reachable at NEXT_PUBLIC_WORKER_URL (e.g. https://worker.example.com).
+const WORKER_URL = (process.env.NEXT_PUBLIC_WORKER_URL ?? "").replace(/\/$/, "")
 
 export default function HomePage() {
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -33,23 +37,32 @@ export default function HomePage() {
     setLines((prev) => [...prev, { id: lineId.current, kind, text }])
   }, [])
 
-  // Bootstrap session + auto-detect cookies
+  // Bootstrap session against the worker
   useEffect(() => {
+    if (!WORKER_URL) {
+      pushLine(
+        "error",
+        "NEXT_PUBLIC_WORKER_URL is not set. Point this at your home-server worker (e.g. https://worker.example.com).",
+      )
+      return
+    }
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch("/api/cookies", { method: "GET" })
+        const res = await fetch(`${WORKER_URL}/session`, { method: "GET" })
         const data = await res.json()
         if (cancelled) return
+        if (!res.ok) throw new Error(data.error ?? "session init failed")
         setSessionId(data.sessionId)
         setCookiesLoaded(Boolean(data.cookiesLoaded))
         if (data.autoDetected) {
-          pushLine("success", "auto-detected cookies.txt in working directory")
+          pushLine("success", "auto-detected cookies.txt on worker")
         } else {
+          pushLine("system", `connected to worker @ ${WORKER_URL}`)
           pushLine("system", "session initialised. ready.")
         }
       } catch (e: any) {
-        pushLine("error", `failed to init session: ${e?.message ?? e}`)
+        pushLine("error", `failed to reach worker: ${e?.message ?? e}`)
       }
     })()
     return () => {
@@ -59,12 +72,15 @@ export default function HomePage() {
 
   const handleUploadCookies = useCallback(
     async (file: File) => {
+      if (!WORKER_URL) return
       setBusy(true)
       try {
-        const fd = new FormData()
-        fd.append("cookies", file)
-        if (sessionId) fd.append("sessionId", sessionId)
-        const res = await fetch("/api/cookies", { method: "POST", body: fd })
+        const cookieText = await file.text()
+        const res = await fetch(`${WORKER_URL}/cookies`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, filename: file.name, cookieText }),
+        })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error ?? "upload failed")
         setSessionId(data.sessionId)
@@ -81,10 +97,12 @@ export default function HomePage() {
   )
 
   const handleClearCookies = useCallback(async () => {
-    if (!sessionId) return
+    if (!sessionId || !WORKER_URL) return
     setBusy(true)
     try {
-      const res = await fetch(`/api/cookies?sessionId=${encodeURIComponent(sessionId)}`, { method: "DELETE" })
+      const res = await fetch(`${WORKER_URL}/cookies?sessionId=${encodeURIComponent(sessionId)}`, {
+        method: "DELETE",
+      })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error ?? "clear failed")
@@ -101,6 +119,7 @@ export default function HomePage() {
 
   const handleFetch = useCallback(
     async (nextUrl: string) => {
+      if (!WORKER_URL) return
       setFetching(true)
       setUrl(nextUrl)
       setInfo(null)
@@ -110,7 +129,7 @@ export default function HomePage() {
       setPercent(null)
       pushLine("system", `fetching info for: ${nextUrl}`)
       try {
-        const res = await fetch("/api/fetch-info", {
+        const res = await fetch(`${WORKER_URL}/fetch-info`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url: nextUrl, sessionId }),
@@ -130,7 +149,7 @@ export default function HomePage() {
   )
 
   const handleDownload = useCallback(async () => {
-    if (!info || !url) return
+    if (!info || !url || !WORKER_URL) return
     setDownloading(true)
     setPercent(0)
     setDownloadHref(null)
@@ -141,7 +160,7 @@ export default function HomePage() {
     abortRef.current = controller
 
     try {
-      const res = await fetch("/api/download", {
+      const res = await fetch(`${WORKER_URL}/download`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ url, formatId: selectedFormat, sessionId }),
@@ -208,9 +227,11 @@ export default function HomePage() {
           if (parsed?.line) pushLine("progress", parsed.line)
           break
         case "file":
-          if (parsed?.filename) {
+          if (parsed?.filename && parsed?.sessionId) {
             setDownloadFilename(parsed.filename)
-            setDownloadHref(`/api/file/${encodeURIComponent(parsed.filename)}`)
+            setDownloadHref(
+              `${WORKER_URL}/file/${encodeURIComponent(parsed.sessionId)}/${encodeURIComponent(parsed.filename)}`,
+            )
           }
           break
         case "error":
@@ -230,7 +251,10 @@ export default function HomePage() {
     <main className="relative mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:py-12">
       <header className="flex flex-col gap-2">
         <div className="flex items-center gap-3">
-          <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_2px_rgba(255,92,141,0.7)]" />
+          <span
+            aria-hidden
+            className="inline-block h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_2px_rgba(255,92,141,0.7)]"
+          />
           <h1 className="text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
             ytdl<span className="text-primary">.</span>term
           </h1>
