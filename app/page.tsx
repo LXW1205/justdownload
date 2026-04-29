@@ -8,15 +8,9 @@ import { VideoInfoPanel } from "@/components/video-info-panel"
 import { TerminalOutput, type LogLine } from "@/components/terminal-output"
 import type { VideoInfo } from "@/lib/types"
 
-// The Next.js app is a thin client. All real work happens on the home-server
-// worker reachable at NEXT_PUBLIC_WORKER_URL (e.g. https://worker.example.com).
-const WORKER_URL = (process.env.NEXT_PUBLIC_WORKER_URL ?? "").replace(/\/$/, "")
-
+// Single-container app. All endpoints are same-origin Next.js routes.
 export default function HomePage() {
-  const [sessionId, setSessionId] = useState<string | null>(null)
   const [cookiesLoaded, setCookiesLoaded] = useState(false)
-  const [cookiesFilename, setCookiesFilename] = useState<string | undefined>(undefined)
-  const [busy, setBusy] = useState(false)
 
   const [url, setUrl] = useState("")
   const [info, setInfo] = useState<VideoInfo | null>(null)
@@ -37,32 +31,23 @@ export default function HomePage() {
     setLines((prev) => [...prev, { id: lineId.current, kind, text }])
   }, [])
 
-  // Bootstrap session against the worker
+  // Probe whether cookies.txt was mounted in via docker-compose.
   useEffect(() => {
-    if (!WORKER_URL) {
-      pushLine(
-        "error",
-        "NEXT_PUBLIC_WORKER_URL is not set. Point this at your home-server worker (e.g. https://worker.example.com).",
-      )
-      return
-    }
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch(`${WORKER_URL}/session`, { method: "GET" })
+        const res = await fetch("/api/status")
         const data = await res.json()
         if (cancelled) return
-        if (!res.ok) throw new Error(data.error ?? "session init failed")
-        setSessionId(data.sessionId)
         setCookiesLoaded(Boolean(data.cookiesLoaded))
-        if (data.autoDetected) {
-          pushLine("success", "auto-detected cookies.txt on worker")
+        pushLine("system", "container ready")
+        if (data.cookiesLoaded) {
+          pushLine("success", "auto-detected cookies.txt at /app/cookies.txt")
         } else {
-          pushLine("system", `connected to worker @ ${WORKER_URL}`)
-          pushLine("system", "session initialised. ready.")
+          pushLine("system", "no cookies.txt mounted (optional)")
         }
       } catch (e: any) {
-        pushLine("error", `failed to reach worker: ${e?.message ?? e}`)
+        pushLine("error", `status check failed: ${e?.message ?? e}`)
       }
     })()
     return () => {
@@ -70,56 +55,8 @@ export default function HomePage() {
     }
   }, [pushLine])
 
-  const handleUploadCookies = useCallback(
-    async (file: File) => {
-      if (!WORKER_URL) return
-      setBusy(true)
-      try {
-        const cookieText = await file.text()
-        const res = await fetch(`${WORKER_URL}/cookies`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, filename: file.name, cookieText }),
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error ?? "upload failed")
-        setSessionId(data.sessionId)
-        setCookiesLoaded(true)
-        setCookiesFilename(data.filename)
-        pushLine("success", `cookies loaded: ${data.filename}`)
-      } catch (e: any) {
-        pushLine("error", `cookie upload failed: ${e?.message ?? e}`)
-      } finally {
-        setBusy(false)
-      }
-    },
-    [sessionId, pushLine],
-  )
-
-  const handleClearCookies = useCallback(async () => {
-    if (!sessionId || !WORKER_URL) return
-    setBusy(true)
-    try {
-      const res = await fetch(`${WORKER_URL}/cookies?sessionId=${encodeURIComponent(sessionId)}`, {
-        method: "DELETE",
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error ?? "clear failed")
-      }
-      setCookiesLoaded(false)
-      setCookiesFilename(undefined)
-      pushLine("system", "cookies cleared")
-    } catch (e: any) {
-      pushLine("error", `clear failed: ${e?.message ?? e}`)
-    } finally {
-      setBusy(false)
-    }
-  }, [sessionId, pushLine])
-
   const handleFetch = useCallback(
     async (nextUrl: string) => {
-      if (!WORKER_URL) return
       setFetching(true)
       setUrl(nextUrl)
       setInfo(null)
@@ -129,27 +66,27 @@ export default function HomePage() {
       setPercent(null)
       pushLine("system", `fetching info for: ${nextUrl}`)
       try {
-        const res = await fetch(`${WORKER_URL}/fetch-info`, {
+        const res = await fetch("/api/fetch-info", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: nextUrl, sessionId }),
+          body: JSON.stringify({ url: nextUrl }),
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error ?? "fetch failed")
         setInfo(data.info as VideoInfo)
         pushLine("success", `loaded "${data.info.title}" (${data.info.formats.length} formats)`)
-        if (data.cookiesUsed) pushLine("system", "using uploaded cookies for this request")
+        if (data.cookiesUsed) pushLine("system", "using mounted cookies.txt for this request")
       } catch (e: any) {
         pushLine("error", `ERROR: ${e?.message ?? e}`)
       } finally {
         setFetching(false)
       }
     },
-    [sessionId, pushLine],
+    [pushLine],
   )
 
   const handleDownload = useCallback(async () => {
-    if (!info || !url || !WORKER_URL) return
+    if (!info || !url) return
     setDownloading(true)
     setPercent(0)
     setDownloadHref(null)
@@ -160,10 +97,10 @@ export default function HomePage() {
     abortRef.current = controller
 
     try {
-      const res = await fetch(`${WORKER_URL}/download`, {
+      const res = await fetch("/api/download", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-        body: JSON.stringify({ url, formatId: selectedFormat, sessionId }),
+        body: JSON.stringify({ url, formatId: selectedFormat }),
         signal: controller.signal,
       })
       if (!res.ok || !res.body) {
@@ -174,7 +111,6 @@ export default function HomePage() {
       const decoder = new TextDecoder()
       let buffer = ""
 
-      // SSE loop
       while (true) {
         const { value, done } = await reader.read()
         if (done) break
@@ -198,10 +134,10 @@ export default function HomePage() {
     }
 
     function handleSseEvent(raw: string) {
-      const lines = raw.split("\n")
+      const evLines = raw.split("\n")
       let event = "message"
       let data = ""
-      for (const l of lines) {
+      for (const l of evLines) {
         if (l.startsWith("event:")) event = l.slice(6).trim()
         else if (l.startsWith("data:")) data += l.slice(5).trim()
       }
@@ -227,11 +163,9 @@ export default function HomePage() {
           if (parsed?.line) pushLine("progress", parsed.line)
           break
         case "file":
-          if (parsed?.filename && parsed?.sessionId) {
+          if (parsed?.filename) {
             setDownloadFilename(parsed.filename)
-            setDownloadHref(
-              `${WORKER_URL}/file/${encodeURIComponent(parsed.sessionId)}/${encodeURIComponent(parsed.filename)}`,
-            )
+            setDownloadHref(`/api/file/${encodeURIComponent(parsed.filename)}`)
           }
           break
         case "error":
@@ -240,12 +174,12 @@ export default function HomePage() {
         case "done":
           if (parsed?.ok) {
             setPercent(100)
-            pushLine("success", "download complete")
+            pushLine("success", "download complete — saved to ./downloads on host")
           }
           break
       }
     }
-  }, [info, url, selectedFormat, sessionId, pushLine])
+  }, [info, url, selectedFormat, pushLine])
 
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:py-12">
@@ -268,13 +202,7 @@ export default function HomePage() {
       <TerminalWindow title="ytdl.term" subtitle="input" glow>
         <UrlInputPanel onFetch={handleFetch} isLoading={fetching} disabled={downloading} />
         <div className="mt-4">
-          <OptionsPanel
-            cookiesLoaded={cookiesLoaded}
-            cookiesFilename={cookiesFilename}
-            onUpload={handleUploadCookies}
-            onClear={handleClearCookies}
-            busy={busy}
-          />
+          <OptionsPanel cookiesLoaded={cookiesLoaded} />
         </div>
       </TerminalWindow>
 
