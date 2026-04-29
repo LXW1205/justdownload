@@ -1,6 +1,6 @@
-# ytdl.term
+# justdownload
 
-A tiny terminal-styled YouTube downloader. Single-container Next.js app that wraps `yt-dlp` and `ffmpeg`, runs anywhere Docker runs, and saves completed files straight to a host folder.
+A terminal-styled YouTube downloader. Single-container Next.js app that wraps `yt-dlp` and `ffmpeg`, runs anywhere Docker runs, and saves completed files straight to a host folder.
 
 ## Run it
 

@@ -190,16 +190,16 @@ export default function HomePage() {
             className="inline-block h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_2px_rgba(255,92,141,0.7)]"
           />
           <h1 className="text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            ytdl<span className="text-primary">.</span>term
+            just<span className="text-primary">download</span>
           </h1>
         </div>
         <p className="text-sm text-secondary">
-          <span className="text-primary">$</span> a tiny terminal-styled YouTube downloader, powered by{" "}
+          <span className="text-primary">$</span> a terminal-styled YouTube downloader, powered by{" "}
           <span className="text-foreground">yt-dlp</span>.
         </p>
       </header>
 
-      <TerminalWindow title="ytdl.term" subtitle="input" glow>
+      <TerminalWindow title="justdownload" subtitle="input" glow>
         <UrlInputPanel onFetch={handleFetch} isLoading={fetching} disabled={downloading} />
         <div className="mt-4">
           <OptionsPanel cookiesLoaded={cookiesLoaded} />
@@ -207,7 +207,7 @@ export default function HomePage() {
       </TerminalWindow>
 
       {info && (
-        <TerminalWindow title="ytdl.term" subtitle={`video — ${info.id}`}>
+        <TerminalWindow title="justdownload" subtitle={`video — ${info.id}`}>
           <VideoInfoPanel
             info={info}
             selectedFormat={selectedFormat}
@@ -218,7 +218,7 @@ export default function HomePage() {
         </TerminalWindow>
       )}
 
-      <TerminalWindow title="ytdl.term" subtitle="stdout">
+      <TerminalWindow title="justdownload" subtitle="stdout">
         <TerminalOutput
           lines={lines}
           percent={percent}

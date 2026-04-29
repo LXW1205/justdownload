@@ -10,9 +10,8 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "ytdl.term — YouTube Downloader",
-  description: "A CLI-styled YouTube video downloader powered by yt-dlp.",
-  generator: "v0.app",
+  title: "justdownload — YouTube Downloader",
+  description: "A terminal-styled YouTube video downloader powered by yt-dlp.",
 }
 
 export const viewport = {

@@ -9,7 +9,7 @@ type Props = {
   glow?: boolean
 }
 
-export function TerminalWindow({ title = "ytdl.term", subtitle, className, children, glow = false }: Props) {
+export function TerminalWindow({ title = "justdownload", subtitle, className, children, glow = false }: Props) {
   return (
     <section
       className={cn(
