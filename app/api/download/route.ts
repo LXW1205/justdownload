@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import path from "node:path"
 import fs from "node:fs/promises"
-import { detectCookies, ensureDownloadDir } from "@/lib/yt-dlp"
+import { getWritableCookiesPath, ensureDownloadDir } from "@/lib/yt-dlp"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     })
   }
 
-  const cookies = await detectCookies()
+  const cookies = await getWritableCookiesPath()
   const downloadDir = await ensureDownloadDir()
 
   // Stable, unique-but-readable output template.
@@ -40,6 +40,8 @@ export async function POST(req: Request) {
     "--progress",
     "--no-colors",
     "--restrict-filenames",
+    "--js-runtimes",
+    "node",
     "-o",
     outputTemplate,
   ]

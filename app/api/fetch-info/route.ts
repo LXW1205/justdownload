@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
 import { spawn } from "node:child_process"
-import { buildLabel, detectCookies, formatDuration, formatUploadDate } from "@/lib/yt-dlp"
+import { buildLabel, getWritableCookiesPath, formatDuration, formatUploadDate } from "@/lib/yt-dlp"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 function runYtDlpJson(url: string, cookiesPath: string | null): Promise<string> {
   return new Promise((resolve, reject) => {
-    const args = ["--dump-json", "--no-playlist"]
+    const args = ["--dump-json", "--no-playlist", "--js-runtimes", "node"]
     if (cookiesPath) args.push("--cookies", cookiesPath)
     args.push(url)
 
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   const url: string | undefined = body?.url?.trim?.()
   if (!url) return NextResponse.json({ error: "Missing url" }, { status: 400 })
 
-  const cookies = await detectCookies()
+  const cookies = await getWritableCookiesPath()
 
   try {
     const stdout = await runYtDlpJson(url, cookies)

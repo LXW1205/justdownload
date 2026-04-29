@@ -27,6 +27,25 @@ export async function detectCookies(): Promise<string | null> {
   return null
 }
 
+/**
+ * Copies the read-only cookies file to /tmp so yt-dlp can safely
+ * "write" (update) it if it wants to, without crashing.
+ */
+export async function getWritableCookiesPath(): Promise<string | null> {
+  const p = await detectCookies()
+  if (!p) return null
+  try {
+    const writablePath = path.join(
+      "/tmp",
+      `cookies_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.txt`,
+    )
+    await fs.copyFile(p, writablePath)
+    return writablePath
+  } catch {
+    return p // Fallback to original if copy fails
+  }
+}
+
 export function formatDuration(seconds: number): string {
   if (!seconds || !isFinite(seconds)) return "--:--"
   const h = Math.floor(seconds / 3600)

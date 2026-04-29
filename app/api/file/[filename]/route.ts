@@ -58,7 +58,6 @@ export async function GET(
   // Stream straight from disk; the file stays on the host volume after serve
   // so the user can also grab it from ./downloads.
   const nodeStream = createReadStream(fullPath)
-  // @ts-expect-error - Node Readable is acceptable for Web Response in Node runtime
   const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>
 
   return new Response(webStream, {
