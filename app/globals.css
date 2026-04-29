@@ -1,0 +1,140 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* CLI palette */
+  --background: #524a4e;
+  --foreground: #fdeff4;
+  --card: #3d3639;
+  --card-foreground: #fdeff4;
+  --popover: #3d3639;
+  --popover-foreground: #fdeff4;
+  --primary: #ff5c8d;
+  --primary-foreground: #2a2426;
+  --secondary: #ffc0d3;
+  --secondary-foreground: #2a2426;
+  --muted: #4a4245;
+  --muted-foreground: #ffc0d3;
+  --accent: #ff5c8d;
+  --accent-foreground: #2a2426;
+  --destructive: #ff4d6d;
+  --destructive-foreground: #fdeff4;
+  --border: #ff5c8d;
+  --input: #4a4245;
+  --ring: #ff5c8d;
+  --radius: 0.25rem;
+
+  /* surfaces */
+  --terminal-bg: #2f292c;
+  --terminal-border: #ff5c8d;
+  --grid-line: rgba(255, 192, 211, 0.06);
+}
+
+@theme inline {
+  --font-sans: var(--font-mono-cli), 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  --font-mono: var(--font-mono-cli), 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-terminal-bg: var(--terminal-bg);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'liga' 0, 'calt' 1;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+      radial-gradient(ellipse at top, rgba(255, 92, 141, 0.08), transparent 60%);
+    background-size: 32px 32px, 32px 32px, 100% 100%;
+  }
+}
+
+/* scanline overlay */
+.scanlines::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 2px,
+    rgba(0, 0, 0, 0.12) 2px,
+    rgba(0, 0, 0, 0.12) 3px
+  );
+  border-radius: inherit;
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+}
+
+/* blinking caret */
+@keyframes caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.caret-blink::after {
+  content: '_';
+  animation: caret-blink 1s steps(1) infinite;
+  color: var(--primary);
+  margin-left: 2px;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 1px var(--primary), 0 0 18px -2px rgba(255, 92, 141, 0.5); }
+  50% { box-shadow: 0 0 0 1px var(--primary), 0 0 28px 0px rgba(255, 92, 141, 0.7); }
+}
+.glow-border {
+  box-shadow: 0 0 0 1px var(--primary), 0 0 20px -4px rgba(255, 92, 141, 0.45);
+}
+.glow-border-pulse {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* terminal output line fade-in */
+@keyframes term-line-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.term-line {
+  animation: term-line-in 120ms ease-out both;
+}
+
+/* hide native scrollbar inside terminal but keep scroll */
+.terminal-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.terminal-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.terminal-scroll::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 4px;
+}
