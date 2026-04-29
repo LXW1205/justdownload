@@ -1,0 +1,5 @@
+# Netscape HTTP Cookie File
+# Placeholder. Replace with cookies exported from your browser
+# (e.g. via the "Get cookies.txt LOCALLY" extension) to enable
+# age-restricted / members-only / private video downloads.
+# An empty file is treated as "no cookies" by yt-dlp.
