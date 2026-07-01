@@ -2,29 +2,6 @@
 
 A terminal YouTube downloader. `yt-dlp` + `ffmpeg`, no GUI, no Electron, no Docker. One Python package, one runtime dependency.
 
-![System Preview](sample_screens/justdownload-1.png)
-
-## About
-
-This started as a Next.js web app run in Docker. That was overkill — slow to start, hard to share, and the web UI didn't add much over a CLI. The rewrite dropped ~11,500 lines of web code and replaced them with ~900 lines of Python.
-
-Design principles:
-
-- **One runtime dependency.** `yt-dlp` is the only pip install required at runtime. `ffmpeg` and `node` are system-level.
-- **No GUI framework.** `tkinter`, `customtkinter`, and the like were tried and discarded. The terminal is the UI.
-- **Stdlib only for the CLI itself.** `argparse`, `subprocess`, `queue`, `signal`, `urllib`, `json`. PyInstaller is only needed if you want a `.exe`/`.app` bundle.
-- **No telemetry, no update nag, no analytics.** The only thing that persists between runs is the default output directory.
-- **Honest about failures.** Common yt-dlp errors get friendlier one-liners (e.g. "JS runtime missing", "Video is private, deleted, or region-locked").
-- **Resume works.** Same URL + format = same output prefix = yt-dlp picks up partial downloads automatically.
-
-What's deliberately **not** here, and why:
-
-- **No playlist support.** Wrap in a shell loop if you want it.
-- **No concurrent downloads.** Hard to interleave yt-dlp's progress output across multiple streams.
-- **No search.** Use YouTube's UI to find URLs.
-- **No automatic quality capping.** Pick `[1]` for 1080p max or write your own `-f` selector.
-- **No light/dark mode toggle.** Terminal theme is the theme.
-
 ## Install
 
 ```bash
@@ -227,7 +204,3 @@ justdownload/
 - **yt-dlp** — the only runtime dependency
 - **ffmpeg** — system-level, for merging video + audio streams
 - **node / deno / bun** — system-level, for YouTube's JS challenges
-
-## License
-
-MIT.
