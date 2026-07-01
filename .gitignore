@@ -1,14 +1,16 @@
-# v0 sandbox internal files
-__v0_runtime_loader.js
-__v0_devtools.tsx
-__v0_jsx-dev-runtime.ts
-.snowflake/
-.v0-trash/
-.vercel/
-next.user-config.*
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.eggs/
+build/
+dist/
+.venv/
+venv/
 
-# Environment variables
-.env*.local
+# PyInstaller
+*.spec.bak
 
 # Cookies (may contain sensitive session data)
 cookies.txt
@@ -17,7 +19,13 @@ cookies.txt
 downloads/*
 !downloads/.gitkeep
 
-# Common ignores
-node_modules
-.next/
-.DS_Store
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests
+.pytest_cache/
+.tox/
+
+# Editor
+*.swp

@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "justdownload"
+version = "0.1.0"
+description = "Terminal YouTube downloader. yt-dlp + ffmpeg. No GUI."
+requires-python = ">=3.10"
+dependencies = [
+    "yt-dlp",
+]
+
+[project.scripts]
+justdownload = "justdownload.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/justdownload"]
