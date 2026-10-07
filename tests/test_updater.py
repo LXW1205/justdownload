@@ -1,10 +1,58 @@
 """Tests for justdownload.core.updater — version parsing + PyPI check + pip update."""
 
 import json
+import sys
 import unittest
 from unittest import mock
 
 from justdownload.core import updater
+
+
+class YtdlpArgvTests(unittest.TestCase):
+    """The resolver is the one place that decides which yt-dlp we run."""
+
+    def test_prefers_module_when_importable(self):
+        with mock.patch("justdownload.core.updater.importlib.util.find_spec",
+                        return_value=mock.Mock()), \
+             mock.patch("justdownload.core.updater.shutil.which") as mock_which:
+            self.assertEqual(updater.ytdlp_argv(), [sys.executable, "-m", "yt_dlp"])
+        # Importable means PATH is never consulted — no second install can sneak in.
+        mock_which.assert_not_called()
+
+    def test_falls_back_to_path_when_not_importable(self):
+        with mock.patch("justdownload.core.updater.importlib.util.find_spec",
+                        return_value=None), \
+             mock.patch("justdownload.core.updater.shutil.which",
+                        return_value="/usr/bin/yt-dlp") as mock_which:
+            self.assertEqual(updater.ytdlp_argv(), ["/usr/bin/yt-dlp"])
+        mock_which.assert_called_once_with("yt-dlp")
+
+    def test_empty_when_neither_available(self):
+        with mock.patch("justdownload.core.updater.importlib.util.find_spec",
+                        return_value=None), \
+             mock.patch("justdownload.core.updater.shutil.which", return_value=None):
+            self.assertEqual(updater.ytdlp_argv(), [])
+
+
+class GetYtDlpVersionTests(unittest.TestCase):
+    @mock.patch("justdownload.core.updater.subprocess.run")
+    @mock.patch("justdownload.core.updater.ytdlp_argv", return_value=["/venv/bin/python", "-m", "yt_dlp"])
+    def test_runs_the_resolved_ytdlp(self, _argv, mock_run):
+        mock_run.return_value = mock.Mock(returncode=0, stdout="2026.6.9\n")
+        self.assertEqual(updater.get_yt_dlp_version(), "2026.6.9")
+        self.assertEqual(mock_run.call_args[0][0], ["/venv/bin/python", "-m", "yt_dlp", "--version"])
+
+    @mock.patch("justdownload.core.updater.subprocess.run")
+    @mock.patch("justdownload.core.updater.ytdlp_argv", return_value=[])
+    def test_missing_ytdlp_returns_none_without_spawning(self, _argv, mock_run):
+        self.assertIsNone(updater.get_yt_dlp_version())
+        mock_run.assert_not_called()
+
+    @mock.patch("justdownload.core.updater.subprocess.run",
+                side_effect=OSError("boom"))
+    @mock.patch("justdownload.core.updater.ytdlp_argv", return_value=["yt-dlp"])
+    def test_spawn_failure_returns_none(self, _argv, _run):
+        self.assertIsNone(updater.get_yt_dlp_version())
 
 
 class ParseVersionTests(unittest.TestCase):

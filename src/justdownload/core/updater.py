@@ -1,13 +1,30 @@
 """Check whether yt-dlp and ffmpeg are up to date; offer to update yt-dlp."""
 
+import importlib.util
 import json
 import queue
 import re
+import shutil
 import subprocess
 import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+
+
+def ytdlp_argv() -> list[str]:
+    """argv prefix that runs the very yt-dlp `update_yt_dlp` upgrades.
+
+    ponytail: `pip install -U yt-dlp` writes into *this* interpreter's
+    site-packages, so the version check and the download have to run it too —
+    a bare "yt-dlp" resolves through PATH to some other install. PATH stays
+    the fallback for the PyInstaller onefile bundle, where sys.executable
+    IS the yt-dlp interpreter. Empty list = yt-dlp not found.
+    """
+    if importlib.util.find_spec("yt_dlp") is not None:
+        return [sys.executable, "-m", "yt_dlp"]
+    path = shutil.which("yt-dlp")
+    return [path] if path else []
 
 
 @dataclass
@@ -35,9 +52,12 @@ def is_outdated(installed: str, latest: str) -> bool:
 
 
 def get_yt_dlp_version() -> str | None:
+    argv = ytdlp_argv()
+    if not argv:
+        return None
     try:
         r = subprocess.run(
-            ["yt-dlp", "--version"],
+            argv + ["--version"],
             capture_output=True, text=True, timeout=5,
         )
     except (OSError, subprocess.SubprocessError):

@@ -9,6 +9,10 @@ import threading
 from dataclasses import dataclass
 
 from justdownload.core.progress import parse_line
+from justdownload.core.updater import ytdlp_argv
+
+# ponytail: one message for "yt-dlp is nowhere" — both spawn sites hit it.
+_YTDLP_MISSING = "yt-dlp not found. Install with: pip install yt-dlp"
 
 
 def _format_duration(seconds) -> str:
@@ -54,7 +58,11 @@ def _build_label(f: dict) -> tuple[str, str]:
 
 
 def fetch_info(url: str, cookies_path: str | None) -> dict:
-    args = ["yt-dlp", "--dump-json", "--no-playlist", "--js-runtimes", "node"]
+    base = ytdlp_argv()
+    if not base:
+        raise RuntimeError(_YTDLP_MISSING)
+
+    args = base + ["--dump-json", "--no-playlist", "--js-runtimes", "node"]
     if cookies_path:
         args += ["--cookies", cookies_path]
     args.append(url)
@@ -169,8 +177,13 @@ def start_download(
     cookies_path: str | None,
     q: queue.Queue,
 ) -> Download | None:
-    args = [
-        "yt-dlp",
+    base = ytdlp_argv()
+    if not base:
+        q.put(("error", _YTDLP_MISSING))
+        q.put(("done", False, None))
+        return None
+
+    args = base + [
         "--no-playlist",
         "--newline",
         "--progress",
@@ -193,8 +206,9 @@ def start_download(
     template = os.path.join(download_dir, f"{stem}__%(title).200B.%(ext)s")
     args += ["-o", template, url]
 
-    # Pretty banner, mirroring the original Next.js route.
-    pretty = " ".join(a if " " not in a and "\t" not in a else f'"{a}"' for a in args[1:])
+    # Pretty banner, mirroring the original Next.js route. Shows yt-dlp + its
+    # flags, never the [python, -m, yt_dlp] prefix the resolver hands us.
+    pretty = " ".join(a if " " not in a and "\t" not in a else f'"{a}"' for a in args[len(base):])
     q.put(("status", f"$ yt-dlp {pretty}"))
 
     try:
@@ -206,7 +220,7 @@ def start_download(
             bufsize=1,
         )
     except FileNotFoundError:
-        q.put(("error", "yt-dlp not found. Install with: pip install yt-dlp"))
+        q.put(("error", _YTDLP_MISSING))
         q.put(("done", False, None))
         return None
 

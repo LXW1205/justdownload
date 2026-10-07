@@ -101,7 +101,8 @@ class BuildLabelTests(unittest.TestCase):
 
 class FetchInfoTests(unittest.TestCase):
     @mock.patch("justdownload.core.ytdlp.subprocess.run")
-    def test_parses_first_json_line(self, mock_run):
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["yt-dlp"])
+    def test_parses_first_json_line(self, _argv, mock_run):
         json_line = json.dumps({"id": "abc", "title": "Hello", "formats": []})
         mock_run.return_value = mock.Mock(returncode=0, stdout=json_line + "\n", stderr="")
         info = ytdlp.fetch_info("https://example.com/v=1", None)
@@ -110,7 +111,8 @@ class FetchInfoTests(unittest.TestCase):
         self.assertEqual(info["formats"], [])
 
     @mock.patch("justdownload.core.ytdlp.subprocess.run")
-    def test_skips_non_json_output(self, mock_run):
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["yt-dlp"])
+    def test_skips_non_json_output(self, _argv, mock_run):
         # yt-dlp sometimes prints progress to stdout before the JSON.
         json_line = json.dumps({"id": "abc", "title": "Hello", "formats": []})
         mock_run.return_value = mock.Mock(
@@ -122,7 +124,8 @@ class FetchInfoTests(unittest.TestCase):
         self.assertEqual(info["id"], "abc")
 
     @mock.patch("justdownload.core.ytdlp.subprocess.run")
-    def test_non_zero_exit_raises(self, mock_run):
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["yt-dlp"])
+    def test_non_zero_exit_raises(self, _argv, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=1, stdout="", stderr="ERROR: video unavailable"
         )
@@ -131,7 +134,8 @@ class FetchInfoTests(unittest.TestCase):
         self.assertIn("video unavailable", str(cm.exception))
 
     @mock.patch("justdownload.core.ytdlp.subprocess.run")
-    def test_filters_video_plus_audio_only(self, mock_run):
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["yt-dlp"])
+    def test_filters_video_plus_audio_only(self, _argv, mock_run):
         # Format with both codecs = none should be excluded.
         json_line = json.dumps({
             "id": "1", "title": "T",
@@ -149,7 +153,8 @@ class FetchInfoTests(unittest.TestCase):
         self.assertNotIn("b", ids)
 
     @mock.patch("justdownload.core.ytdlp.subprocess.run")
-    def test_passes_cookies_path(self, mock_run):
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["yt-dlp"])
+    def test_passes_cookies_path(self, _argv, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout=json.dumps({"id": "1", "title": "T", "formats": []}), stderr=""
         )
@@ -158,10 +163,31 @@ class FetchInfoTests(unittest.TestCase):
         self.assertIn("--cookies", args)
         self.assertIn("/path/to/cookies.txt", args)
 
+    @mock.patch("justdownload.core.ytdlp.subprocess.run")
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["/venv/bin/python", "-m", "yt_dlp"])
+    def test_uses_resolved_ytdlp(self, _argv, mock_run):
+        mock_run.return_value = mock.Mock(
+            returncode=0, stdout=json.dumps({"id": "1", "title": "T", "formats": []}), stderr=""
+        )
+        ytdlp.fetch_info("https://example.com/v=1", None)
+        self.assertEqual(
+            mock_run.call_args[0][0][:4],
+            ["/venv/bin/python", "-m", "yt_dlp", "--dump-json"],
+        )
+
+    @mock.patch("justdownload.core.ytdlp.subprocess.run")
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=[])
+    def test_missing_ytdlp_raises_without_spawning(self, _argv, mock_run):
+        with self.assertRaises(RuntimeError) as cm:
+            ytdlp.fetch_info("https://example.com/v=1", None)
+        self.assertIn("yt-dlp not found", str(cm.exception))
+        mock_run.assert_not_called()
+
 
 class StartDownloadTests(unittest.TestCase):
     @mock.patch("justdownload.core.ytdlp.subprocess.Popen")
-    def test_returns_handle(self, mock_popen):
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["yt-dlp"])
+    def test_returns_handle(self, _argv, mock_popen):
         mock_proc = mock.MagicMock()
         mock_proc.stdout = iter([])
         mock_proc.stderr = iter([])
@@ -172,7 +198,8 @@ class StartDownloadTests(unittest.TestCase):
         self.assertEqual(handle.stem, ytdlp._stem_for("https://example.com/v=1", "22"))
 
     @mock.patch("justdownload.core.ytdlp.subprocess.Popen", side_effect=FileNotFoundError)
-    def test_missing_ytdlp_returns_none(self, _popen):
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["yt-dlp"])
+    def test_missing_ytdlp_returns_none(self, _argv, _popen):
         q: queue.Queue = queue.Queue()
         handle = ytdlp.start_download("https://example.com/v=1", "22", "/tmp", None, q)
         self.assertIsNone(handle)
@@ -182,7 +209,22 @@ class StartDownloadTests(unittest.TestCase):
         self.assertTrue(any(e[0] == "error" for e in events))
 
     @mock.patch("justdownload.core.ytdlp.subprocess.Popen")
-    def test_format_passthrough_when_not_best(self, mock_popen):
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=[])
+    def test_unresolvable_ytdlp_returns_none(self, _argv, mock_popen):
+        # No importable yt_dlp and none on PATH — resolver hands back [].
+        q: queue.Queue = queue.Queue()
+        handle = ytdlp.start_download("https://example.com/v=1", "22", "/tmp", None, q)
+        self.assertIsNone(handle)
+        mock_popen.assert_not_called()
+        events = []
+        while not q.empty():
+            events.append(q.get_nowait())
+        self.assertIn(("done", False, None), events)
+        self.assertTrue(any(e[0] == "error" and "not found" in e[1] for e in events))
+
+    @mock.patch("justdownload.core.ytdlp.subprocess.Popen")
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["yt-dlp"])
+    def test_format_passthrough_when_not_best(self, _argv, mock_popen):
         mock_proc = mock.MagicMock()
         mock_proc.stdout = iter([])
         mock_proc.stderr = iter([])
@@ -194,7 +236,8 @@ class StartDownloadTests(unittest.TestCase):
         self.assertIn("137", args)
 
     @mock.patch("justdownload.core.ytdlp.subprocess.Popen")
-    def test_no_format_arg_when_best(self, mock_popen):
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["yt-dlp"])
+    def test_no_format_arg_when_best(self, _argv, mock_popen):
         mock_proc = mock.MagicMock()
         mock_proc.stdout = iter([])
         mock_proc.stderr = iter([])
@@ -205,7 +248,8 @@ class StartDownloadTests(unittest.TestCase):
         self.assertNotIn("--format", args)
 
     @mock.patch("justdownload.core.ytdlp.subprocess.Popen")
-    def test_passes_cookies(self, mock_popen):
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["yt-dlp"])
+    def test_passes_cookies(self, _argv, mock_popen):
         mock_proc = mock.MagicMock()
         mock_proc.stdout = iter([])
         mock_proc.stderr = iter([])
@@ -215,6 +259,40 @@ class StartDownloadTests(unittest.TestCase):
         args = mock_popen.call_args[0][0]
         self.assertIn("--cookies", args)
         self.assertIn("/c.txt", args)
+
+    @mock.patch("justdownload.core.ytdlp.subprocess.Popen")
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["yt-dlp"])
+    def test_banner_hides_the_resolver_prefix(self, _argv, mock_popen):
+        mock_proc = mock.MagicMock()
+        mock_proc.stdout = iter([])
+        mock_proc.stderr = iter([])
+        mock_popen.return_value = mock_proc
+        q: queue.Queue = queue.Queue()
+        ytdlp.start_download("https://example.com/v=1", "22", "/tmp", None, q)
+        banner = q.get_nowait()
+        self.assertEqual(banner[0], "status")
+        self.assertTrue(banner[1].startswith("$ yt-dlp --no-playlist "), banner[1])
+        self.assertNotIn("-m", banner[1])
+
+    @mock.patch("justdownload.core.ytdlp.subprocess.Popen")
+    @mock.patch("justdownload.core.ytdlp.ytdlp_argv", return_value=["/venv/bin/python", "-m", "yt_dlp"])
+    def test_banner_hides_the_interpreter_prefix(self, _argv, mock_popen):
+        # "[python, -m, yt_dlp, ...]" must still read as "$ yt-dlp <flags>".
+        mock_proc = mock.MagicMock()
+        mock_proc.stdout = iter([])
+        mock_proc.stderr = iter([])
+        mock_popen.return_value = mock_proc
+        q: queue.Queue = queue.Queue()
+        ytdlp.start_download("https://example.com/v=1", "22", "/tmp", None, q)
+        banner = q.get_nowait()
+        self.assertTrue(banner[1].startswith("$ yt-dlp --no-playlist "), banner[1])
+        self.assertNotIn("/venv/bin/python", banner[1])
+        self.assertNotIn(" -m ", banner[1])
+        # ...while the spawned argv keeps the real prefix.
+        self.assertEqual(
+            mock_popen.call_args[0][0][:3],
+            ["/venv/bin/python", "-m", "yt_dlp"],
+        )
 
 
 class DownloadCancelTests(unittest.TestCase):

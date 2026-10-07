@@ -1,7 +1,6 @@
 """Check whether yt-dlp and ffmpeg are usable, and whether yt-dlp is outdated."""
 
 import shutil
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -10,6 +9,8 @@ from justdownload.core.updater import (
     UpdateInfo,
     check_yt_dlp_update,
     get_ffmpeg_version,
+    get_yt_dlp_version,
+    ytdlp_argv,
 )
 
 
@@ -46,27 +47,17 @@ def _bundled_ffmpeg() -> str | None:
 
 
 def check() -> DepsReport:
-    ytdlp_path = shutil.which("yt-dlp")
+    # ponytail: ytdlp_path is what --status shows and what ytdlp_ok means, so
+    # report the yt-dlp we would actually run (updater.ytdlp_argv) — never some
+    # other install that merely happens to be first on PATH.
+    ytdlp_path = " ".join(ytdlp_argv())
     ffmpeg_path = shutil.which("ffmpeg")
     if not ffmpeg_path:
         bundled = _bundled_ffmpeg()
         if bundled:
             ffmpeg_path = bundled
 
-    ytdlp_version: str | None = None
-    if ytdlp_path:
-        try:
-            r = subprocess.run(
-                [ytdlp_path, "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if r.returncode == 0 and r.stdout:
-                ytdlp_version = r.stdout.strip().splitlines()[0]
-        except (OSError, subprocess.SubprocessError):
-            pass
-
+    ytdlp_version = get_yt_dlp_version() if ytdlp_path else None
     ffmpeg_version = get_ffmpeg_version() if ffmpeg_path else None
     js_runtime = get_js_runtime()
     yt_dlp_update = check_yt_dlp_update()
