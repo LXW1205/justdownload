@@ -62,7 +62,8 @@ def fetch_info(url: str, cookies_path: str | None) -> dict:
     if not base:
         raise RuntimeError(_YTDLP_MISSING)
 
-    args = base + ["--dump-json", "--no-playlist", "--js-runtimes", "node"]
+    args = base + ["--dump-json", "--no-playlist", "--js-runtimes", "node",
+                   "--remote-components", "ejs:github"]
     if cookies_path:
         args += ["--cookies", cookies_path]
     args.append(url)

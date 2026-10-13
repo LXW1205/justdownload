@@ -36,11 +36,15 @@ class JsRuntimeTests(unittest.TestCase):
 
 
 class CheckTests(unittest.TestCase):
+    @mock.patch("justdownload.core.deps._bundled_ffmpeg", return_value=None)
     @mock.patch("justdownload.core.deps.shutil.which", return_value=None)
     @mock.patch("justdownload.core.deps.ytdlp_argv", return_value=[])
     @mock.patch("justdownload.core.deps.check_yt_dlp_update",
                 return_value=mock.Mock(outdated=False, latest=None, installed=None))
-    def test_all_missing_raises_three_warnings(self, _update, _argv, _which):
+    def test_all_missing_raises_three_warnings(self, _update, _argv, _which, _bundled):
+        # _bundled_ffmpeg is mocked too: the "bundled next to executable" probe
+        # collides with a system ffmpeg sitting beside /usr/bin/python3, making
+        # this test host-environment-sensitive otherwise.
         report = deps.check()
         self.assertFalse(report.ytdlp_ok)
         self.assertFalse(report.ffmpeg_ok)
